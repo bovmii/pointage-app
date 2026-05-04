@@ -1,0 +1,4 @@
+* { margin: 0; padding: 0; }
+html, body { width: 100%; }
+body { background: #ece3d0; }
+#root { min-height: 100vh; }
