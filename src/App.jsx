@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { Upload, Download, FilePlus, ChevronLeft, ChevronRight, Calendar, LayoutGrid, RotateCcw, Trash2 } from 'lucide-react';
+import { Upload, Download, FilePlus, ChevronLeft, ChevronRight, Calendar, LayoutGrid, Trash2 } from 'lucide-react';
 
 const DAY_NAMES = ['LUN', 'MAR', 'MER', 'JEU', 'VEN'];
 const DAY_NAMES_FULL = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
@@ -60,7 +60,9 @@ export default function App() {
   });
   const fileInputRef  = useRef(null);
   const historyRef    = useRef([]);
+  const redoRef       = useRef([]);
   const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
 
   useEffect(() => { localStorage.setItem('pointage-data', JSON.stringify(data)); }, [data]);
   useEffect(() => { localStorage.setItem('pointage-filename', fileName); }, [fileName]);
@@ -116,7 +118,9 @@ export default function App() {
 
   function pushHistory(snapshot) {
     historyRef.current = [...historyRef.current.slice(-49), snapshot];
+    redoRef.current = [];
     setCanUndo(true);
+    setCanRedo(false);
   }
 
   function setCell(dayKey, hour, value) {
@@ -134,10 +138,22 @@ export default function App() {
 
   function handleUndo() {
     if (!historyRef.current.length) return;
-    const prev = historyRef.current.pop();
-    setData(prev);
+    setData(current => {
+      redoRef.current = [...redoRef.current.slice(-49), current];
+      setCanRedo(true);
+      return historyRef.current.pop();
+    });
     setCanUndo(historyRef.current.length > 0);
-    flash('Action annulée', 'info');
+  }
+
+  function handleRedo() {
+    if (!redoRef.current.length) return;
+    setData(current => {
+      historyRef.current = [...historyRef.current.slice(-49), current];
+      setCanUndo(true);
+      return redoRef.current.pop();
+    });
+    setCanRedo(redoRef.current.length > 0);
   }
 
   function handleClearWeek() {
@@ -481,8 +497,11 @@ export default function App() {
 
             <div className="toolbar-sep" />
 
-            <button className="tool-btn" onClick={handleUndo} disabled={!canUndo} title="Annuler la dernière action">
-              <RotateCcw size={14} /> Undo
+            <button className="tool-btn" onClick={handleUndo} disabled={!canUndo} title="Annuler">
+              ←
+            </button>
+            <button className="tool-btn" onClick={handleRedo} disabled={!canRedo} title="Rétablir">
+              →
             </button>
             <button className="tool-btn" onClick={handleClearWeek}>
               <Trash2 size={14} /> Semaine
