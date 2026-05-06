@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { Upload, Download, FilePlus, ChevronLeft, ChevronRight, Calendar, LayoutGrid } from 'lucide-react';
+import { Upload, Download, FilePlus, ChevronLeft, ChevronRight, Calendar, LayoutGrid, RotateCcw, Trash2 } from 'lucide-react';
 
 const DAY_NAMES = ['LUN', 'MAR', 'MER', 'JEU', 'VEN'];
 const DAY_NAMES_FULL = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
@@ -58,7 +58,9 @@ export default function App() {
     const n = new Date();
     return { year: n.getFullYear(), month: n.getMonth() };
   });
-  const fileInputRef = useRef(null);
+  const fileInputRef  = useRef(null);
+  const historyRef    = useRef([]);
+  const [canUndo, setCanUndo] = useState(false);
 
   useEffect(() => { localStorage.setItem('pointage-data', JSON.stringify(data)); }, [data]);
   useEffect(() => { localStorage.setItem('pointage-filename', fileName); }, [fileName]);
@@ -112,8 +114,14 @@ export default function App() {
     setTimeout(() => setStatusMessage(''), 4500);
   }
 
+  function pushHistory(snapshot) {
+    historyRef.current = [...historyRef.current.slice(-49), snapshot];
+    setCanUndo(true);
+  }
+
   function setCell(dayKey, hour, value) {
     setData(prev => {
+      pushHistory(prev);
       const next = { ...prev, [dayKey]: { ...(prev[dayKey] || {}) } };
       if (value?.trim()) next[dayKey][hour] = value;
       else {
@@ -122,6 +130,36 @@ export default function App() {
       }
       return next;
     });
+  }
+
+  function handleUndo() {
+    if (!historyRef.current.length) return;
+    const prev = historyRef.current.pop();
+    setData(prev);
+    setCanUndo(historyRef.current.length > 0);
+    flash('Action annulée', 'info');
+  }
+
+  function handleClearWeek() {
+    const keys = weekDays.map(formatYMD);
+    const hasData = keys.some(k => data[k]);
+    if (!hasData) return flash('Semaine déjà vide', 'info');
+    if (!window.confirm('Effacer toute la semaine en cours ?')) return;
+    pushHistory(data);
+    setData(prev => {
+      const next = { ...prev };
+      keys.forEach(k => delete next[k]);
+      return next;
+    });
+    flash('Semaine effacée', 'success');
+  }
+
+  function handleClearAll() {
+    if (!Object.keys(data).length) return flash('Aucune donnée à effacer', 'info');
+    if (!window.confirm('Effacer toutes les données ? Cette action est annulable via Undo.')) return;
+    pushHistory(data);
+    setData({});
+    flash('Toutes les données effacées', 'success');
   }
 
   function navigateWeek(delta) {
@@ -294,6 +332,10 @@ export default function App() {
         .tool-btn:hover { background: #1a1715; color: #ece3d0; }
         .tool-btn.primary { background: #a13a2a; border-color: #a13a2a; color: #f5ecd9; }
         .tool-btn.primary:hover { background: #1a1715; border-color: #1a1715; }
+        .tool-btn.danger { border-color: #a13a2a; color: #a13a2a; }
+        .tool-btn.danger:hover { background: #a13a2a; color: #f5ecd9; }
+        .tool-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+        .tool-btn:disabled:hover { background: transparent; color: #1a1715; }
         .toolbar-sep { width: 1px; height: 28px; background: rgba(26,23,21,0.2); margin: 0 0.2rem; }
         .hour-config { display: flex; align-items: center; gap: 0.4rem; font-size: 0.7rem; letter-spacing: 0.1em; color: rgba(26,23,21,0.65); }
         .hour-config select {
@@ -435,6 +477,18 @@ export default function App() {
             </button>
             <button className="tool-btn primary" onClick={handleDownload}>
               <Download size={14} /> Télécharger
+            </button>
+
+            <div className="toolbar-sep" />
+
+            <button className="tool-btn" onClick={handleUndo} disabled={!canUndo} title="Annuler la dernière action">
+              <RotateCcw size={14} /> Undo
+            </button>
+            <button className="tool-btn" onClick={handleClearWeek}>
+              <Trash2 size={14} /> Semaine
+            </button>
+            <button className="tool-btn danger" onClick={handleClearAll}>
+              <Trash2 size={14} /> Tout
             </button>
 
             <div className="toolbar-sep" />
